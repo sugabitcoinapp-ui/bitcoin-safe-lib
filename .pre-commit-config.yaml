@@ -1,0 +1,51 @@
+repos:
+  - repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1  # Use the specified version of isort
+    hooks:
+      - id: isort
+        args:
+          - --profile=black  # Set the import order style (change 'google' to your preferred style)          
+        exclude: 'urtypes/__init__.py'     
+             
+  - repo: https://github.com/myint/autoflake
+    rev: v2.2.1  # Use the latest version of autoflake
+    hooks:
+      - id: autoflake
+        args:
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --in-place
+          - --exclude=__init__.py
+  - repo: https://github.com/ambv/black
+    rev: 22.3.0
+    hooks:
+    - id: black
+      language_version: python3.10 
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2 
+    hooks:
+      - id: mypy
+        files: ^bitcoin_tools/[^/]+\.py$  
+        args: 
+          - --follow-imports=skip
+          - --check-untyped-defs
+          # - --disallow-untyped-defs
+          # - --disallow-incomplete-defs
+          # - --strict-optional
+          - --implicit-optional
+          - --strict-equality
+          # - --warn-return-any
+          - --warn-redundant-casts
+          - --warn-unreachable
+          # - --disallow-any-generics           
+          # - --strict        
+          - --install-types
+          - --non-interactive   
+          - --ignore-missing-imports
+          - --show-error-codes 
+        language: python  # Required for additional_dependencies https://docs.renovatebot.com/modules/manager/pre-commit/
+        additional_dependencies: 
+          - types-requests
+          - pyqt6 
+          - bdkpython==1.2.0
