@@ -29,7 +29,7 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Iterable, Union
+from typing import Union
 
 from PyQt6.QtCore import QByteArray
 from PyQt6.QtGui import QColor, QPalette
@@ -182,7 +182,3 @@ def qbytearray_to_str(a: QByteArray) -> str:
 
 def str_to_qbytearray(s: str) -> QByteArray:
     return QByteArray(s.encode())  # type: ignore[call-overload]
-
-
-def unique_elements(iterable: Iterable):
-    return list(dict.fromkeys(iterable))

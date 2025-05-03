@@ -77,3 +77,7 @@ def tx_of_psbt_to_hex(psbt: bdk.Psbt):
 
 def tx_to_hex(tx: bdk.Transaction):
     return serialized_to_hex(tx.serialize())
+
+
+def script_pubkey_to_address(script_pubkey: str, network: bdk.Network) -> str:
+    return str(bdk.Address.from_script(hex_to_script(script_pubkey), network))

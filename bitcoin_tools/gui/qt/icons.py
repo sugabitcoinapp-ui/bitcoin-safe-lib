@@ -30,7 +30,7 @@ import csv
 import gzip
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from PyQt6.QtCore import QByteArray, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
@@ -41,11 +41,9 @@ from .util import is_dark_mode
 
 
 class SvgTools:
-    def __init__(self, resource_path: Callable[..., str]) -> None:
-        self.resource_path = resource_path
-
-    def icon_path(self, icon_basename: str) -> str:
-        return self.resource_path("gui", "icons", icon_basename)
+    def __init__(self, get_icon_path: Callable[[str], str], theme_file: str) -> None:
+        self.get_icon_path = get_icon_path
+        self.theme_file = theme_file
 
     @classmethod
     def read_source_file(cls, svg_path: str) -> str:
@@ -59,8 +57,7 @@ class SvgTools:
                 return file.read()
 
     def auto_theme_svg(self, svg_content: str, color: QColor | None = None) -> str:
-        theme_file = self.icon_path("theme.csv")
-        with open(theme_file, "r") as file:
+        with open(self.theme_file, "r") as file:
             csv_reader = csv.reader(file)
             all_rows = [row for row in csv_reader if row]
             header, csv_rows = all_rows[0], all_rows[1:]
@@ -90,38 +87,56 @@ class SvgTools:
         pixmap = cls.svg_to_pixmap(svg_content, size)
         return QIcon(pixmap)
 
-    @lru_cache(maxsize=1000)
-    def get_QIcon(
-        self, icon_basename: Optional[str], auto_theme: bool = True, size: Tuple[int, int] = (256, 256)
-    ) -> QIcon:
+    def get_svg_content(
+        self,
+        icon_basename: Optional[str],
+        auto_theme: bool = True,
+        replace_tuples: List[Tuple[str, str]] | None = None,
+    ) -> str:
         if not icon_basename:
-            return QIcon()
-        icon_file = Path(self.icon_path(icon_basename))
+            return ""
+        icon_file = Path(self.get_icon_path(icon_basename))
         if not icon_file.exists():
-            return QIcon()
+            return ""
 
         if icon_file.suffix.lstrip(".") in ["svg", "svgz"]:
             svg_content = self.read_source_file(str(icon_file))
-            return self.svg_to_icon(
-                self.auto_theme_svg(svg_content) if auto_theme else svg_content, size=size
-            )
+
+            if replace_tuples:
+                for old_text, new_text in replace_tuples:
+                    svg_content = svg_content.replace(old_text, new_text)
+
+            return self.auto_theme_svg(svg_content) if auto_theme else svg_content
         else:
-            return QIcon(str(icon_file))
+            return ""
+
+    @lru_cache(maxsize=1000)
+    def get_QIcon(
+        self,
+        icon_basename: Optional[str],
+        auto_theme: bool = True,
+        size: Tuple[int, int] = (256, 256),
+        replace_tuples: List[Tuple[str, str]] | None = None,
+    ) -> QIcon:
+        svg_content = self.get_svg_content(
+            icon_basename=icon_basename, auto_theme=auto_theme, replace_tuples=replace_tuples
+        )
+        if not svg_content:
+            return QIcon()
+        return self.svg_to_icon(svg_content, size=size)
 
     @lru_cache(maxsize=1000)
     def get_pixmap(
-        self, icon_basename: Optional[str], auto_theme: bool = True, size: Tuple[int, int] = (256, 256)
+        self,
+        icon_basename: Optional[str],
+        auto_theme: bool = True,
+        size: Tuple[int, int] = (256, 256),
+        replace_tuples: List[Tuple[str, str]] | None = None,
     ) -> QPixmap:
-        if not icon_basename:
-            return QPixmap()
-        icon_file = Path(self.icon_path(icon_basename))
-        if not icon_file.exists():
+        svg_content = self.get_svg_content(
+            icon_basename=icon_basename, auto_theme=auto_theme, replace_tuples=replace_tuples
+        )
+        if not svg_content:
             return QPixmap()
 
-        if icon_file.suffix.lstrip(".") in ["svg", "svgz"]:
-            svg_content = self.read_source_file(str(icon_file))
-            return self.svg_to_pixmap(
-                self.auto_theme_svg(svg_content) if auto_theme else svg_content, size=size
-            )
-        else:
-            return QPixmap(str(icon_file))
+        return self.svg_to_pixmap(svg_content, size=size)
