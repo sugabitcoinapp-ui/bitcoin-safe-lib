@@ -30,7 +30,7 @@ import csv
 import gzip
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from PyQt6.QtCore import QByteArray, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
@@ -91,7 +91,7 @@ class SvgTools:
         self,
         icon_basename: Optional[str],
         auto_theme: bool = True,
-        replace_tuples: List[Tuple[str, str]] | None = None,
+        replace_tuples: Optional[Tuple[Tuple[str, str], ...]] = None,
     ) -> str:
         if not icon_basename:
             return ""
@@ -116,7 +116,7 @@ class SvgTools:
         icon_basename: Optional[str],
         auto_theme: bool = True,
         size: Tuple[int, int] = (256, 256),
-        replace_tuples: List[Tuple[str, str]] | None = None,
+        replace_tuples: Optional[Tuple[Tuple[str, str], ...]] = None,
     ) -> QIcon:
         svg_content = self.get_svg_content(
             icon_basename=icon_basename, auto_theme=auto_theme, replace_tuples=replace_tuples
@@ -131,7 +131,7 @@ class SvgTools:
         icon_basename: Optional[str],
         auto_theme: bool = True,
         size: Tuple[int, int] = (256, 256),
-        replace_tuples: List[Tuple[str, str]] | None = None,
+        replace_tuples: Optional[Tuple[Tuple[str, str], ...]] = None,
     ) -> QPixmap:
         svg_content = self.get_svg_content(
             icon_basename=icon_basename, auto_theme=auto_theme, replace_tuples=replace_tuples
