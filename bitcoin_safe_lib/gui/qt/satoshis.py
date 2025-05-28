@@ -34,10 +34,10 @@ import bdkpython as bdk
 from PyQt6.QtCore import QLocale
 from PyQt6.QtGui import QColor
 
-from bitcoin_tools.caching import register_cache
-from bitcoin_tools.gui.qt.i18n import translate
-from bitcoin_tools.gui.qt.util import adjust_brightness, is_dark_mode
-from bitcoin_tools.util import color_format_str
+from bitcoin_safe_lib.caching import register_cache
+from bitcoin_safe_lib.gui.qt.i18n import translate
+from bitcoin_safe_lib.gui.qt.util import adjust_brightness, is_dark_mode
+from bitcoin_safe_lib.util import color_format_str
 
 logger = logging.getLogger(__name__)
 
