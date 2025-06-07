@@ -25,11 +25,13 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+
 import asyncio
 import threading
 from collections.abc import Coroutine
 from concurrent.futures import Future
-from typing import Any, Optional, TypeVar
+from typing import Any, Awaitable, Iterable, List, Optional, TypeVar
 
 _T = TypeVar("_T", covariant=True)
 
@@ -53,6 +55,10 @@ class LoopInThread:
 
     def run_background(self, coro: Coroutine[Any, Any, _T]) -> Future[_T]:
         return asyncio.run_coroutine_threadsafe(coro, self.get_loop())
+
+    def run_parallel(self, coroutines: Iterable[Coroutine[Any, Any, _T]]) -> Awaitable[List[_T]]:
+        futures = [asyncio.wrap_future(self.run_background(co)) for co in coroutines]
+        return asyncio.gather(*futures)
 
     def run_foreground(self, coro: Coroutine[Any, Any, _T]) -> _T:
         """Schedule on the background loop and block until done."""
