@@ -37,11 +37,8 @@ logger = logging.getLogger(__name__)
 
 @runtime_checkable
 class SignalProtocol(Protocol):
-    def connect(self, slot: Callable[..., Any], **kwargs: Any) -> None:
-        ...
-
-    def disconnect(self, *args: Any) -> None:
-        ...
+    connect: Callable[..., Any]
+    disconnect: Callable[..., Any]
 
 
 class SignalTools:
