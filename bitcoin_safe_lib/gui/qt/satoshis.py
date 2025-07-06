@@ -55,8 +55,13 @@ def unit_fee_str(network: bdk.Network) -> str:
     return "Sat/vB" if network is None or network == bdk.Network.BITCOIN else "tSat/vB"
 
 
+def format_fee_rate_splitted(fee_rate: float, network: bdk.Network) -> Tuple[float, str]:
+    return round(fee_rate, 1), unit_fee_str(network)
+
+
 def format_fee_rate(fee_rate: float, network: bdk.Network) -> str:
-    return f"{round(fee_rate,1 )} {unit_fee_str(network)}"
+    fee, unit = format_fee_rate_splitted(fee_rate=fee_rate, network=network)
+    return f"{fee} {unit}"
 
 
 # Main formatting function
@@ -146,20 +151,30 @@ class Satoshis:
         assert self.network == other.network
         return Satoshis(self.value + other.value, self.network)
 
-    def format(
+    def format_splitted(
         self,
         color_formatting: Optional[Literal["html", "rich", "bash"]] = "rich",
-        show_unit=False,
         unicode_space_character=True,
-    ):
+    ) -> Tuple[str, str]:
         number = format_number(
             self.value,
             color_formatting=color_formatting,
             include_decimal_spaces=True,
             unicode_space_character=unicode_space_character,
         )
+        return number, color_format_str(unit_str(self.network), color_formatting=color_formatting)
+
+    def format(
+        self,
+        color_formatting: Optional[Literal["html", "rich", "bash"]] = "rich",
+        show_unit=False,
+        unicode_space_character=True,
+    ):
+        number, unit = self.format_splitted(
+            color_formatting=color_formatting, unicode_space_character=unicode_space_character
+        )
         if show_unit:
-            return f"{number} {color_format_str( unit_str(self.network), color_formatting=color_formatting)}"
+            return f"{number} {unit}"
         else:
             return number
 
