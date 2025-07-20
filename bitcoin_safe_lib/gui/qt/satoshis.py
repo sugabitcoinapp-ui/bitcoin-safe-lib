@@ -65,7 +65,7 @@ def format_fee_rate(fee_rate: float, network: bdk.Network) -> str:
 
 
 # Main formatting function
-@register_cache(always_keep=True)
+@register_cache()
 def format_number(
     number,
     color_formatting: Optional[Literal["html", "rich", "bash"]] = None,

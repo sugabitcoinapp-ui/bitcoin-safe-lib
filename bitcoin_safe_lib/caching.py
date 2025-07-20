@@ -36,6 +36,11 @@ cached_always_keep_functions = []
 cached_functions = []
 
 
+def clear_cache():
+    for f in cached_functions:
+        f.cache_clear()
+
+
 def register_cache(always_keep=False):
     def wrapper(func):
         # Decorate the function with lru_cache
