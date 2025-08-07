@@ -28,6 +28,7 @@
 
 
 import asyncio
+import logging
 import sys
 import threading
 from concurrent.futures import CancelledError, Future
@@ -45,6 +46,8 @@ from typing import (
 )
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
+
+logger = logging.getLogger(__name__)
 
 
 class _GuiInvoker(QObject):
@@ -91,7 +94,9 @@ class LoopInThread:
       - run_task: callback style.
     """
 
-    def __init__(self, autostart: bool = True):
+    def __init__(
+        self,
+    ):
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
         self._tasks: Dict[Future[Any], _Cancel] = {}
@@ -99,8 +104,7 @@ class LoopInThread:
         self._locks: Dict[str, threading.Lock] = {}
         self._global_lock = threading.Lock()
 
-        if autostart:
-            self.start()
+        self._start()
 
     def _get_bucket(self, key: str):
         with self._global_lock:
@@ -108,7 +112,7 @@ class LoopInThread:
             lock = self._locks.setdefault(key, threading.Lock())
         return bucket, lock
 
-    def start(self) -> asyncio.AbstractEventLoop:
+    def _start(self):
         if self._loop:
             raise RuntimeError("LoopInThread already started")
         loop = asyncio.new_event_loop()
@@ -116,13 +120,15 @@ class LoopInThread:
         thread.start()
         self._loop = loop
         self._thread = thread
-        return loop
-
-    def get_loop(self) -> asyncio.AbstractEventLoop:
-        return self._loop or self.start()
 
     def _schedule(self, coro: Coroutine[Any, Any, _T]) -> Future[_T]:
-        return asyncio.run_coroutine_threadsafe(coro, self.get_loop())
+        if not self._loop or not self._loop.is_running():
+            logger.error("Loop is not running; cannot schedule task.")
+            fut = Future()
+            fut.set_running_or_notify_cancel()
+            fut.cancel()
+            return fut
+        return asyncio.run_coroutine_threadsafe(coro, self._loop)
 
     def run_background(
         self,
@@ -255,15 +261,31 @@ class LoopInThread:
         # Cancel all pending callbacks
         for fut in list(self._tasks):
             self.cancel_task(fut)
-        if self._loop:
-            # Schedule shutdown without blocking
-            asyncio.run_coroutine_threadsafe(self._shutdown_coroutines(), self._loop)
+
+        if self._loop and self._thread and self._loop.is_running():
+            # Schedule shutdown coroutines and wait for completion
+            shutdown_fut = asyncio.run_coroutine_threadsafe(self._shutdown_coroutines(), self._loop)
+            try:
+                shutdown_fut.result(timeout=1)
+            except Exception:
+                pass
+
+            # Stop the loop and wait for thread exit
             self._loop.call_soon_threadsafe(self._loop.stop)
-        # Daemon thread will exit when loop stops
-        self._loop = None
-        self._thread = None
+            # Daemon thread will exit when loop stops
+
+            self._thread.join(timeout=1)
+
+            # Close the loop to release resources
+            self._loop.close()
+            self._loop = None
+            self._thread = None
 
     async def _shutdown_coroutines(self):
+        """
+        Cancel all running asyncio tasks in this loop except the current one,
+        then await their completion (collecting exceptions).
+        """
         current = asyncio.current_task()
         tasks = [t for t in asyncio.all_tasks(loop=self._loop) if t is not current]
         for t in tasks:
