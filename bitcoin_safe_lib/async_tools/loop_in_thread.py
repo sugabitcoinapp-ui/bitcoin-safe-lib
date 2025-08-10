@@ -116,7 +116,12 @@ class LoopInThread:
         if self._loop:
             raise RuntimeError("LoopInThread already started")
         loop = asyncio.new_event_loop()
-        thread = threading.Thread(target=loop.run_forever, daemon=True, name="AsyncioLoopThread")
+
+        def _runner():
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        thread = threading.Thread(target=_runner, daemon=True, name="AsyncioLoopThread")
         thread.start()
         self._loop = loop
         self._thread = thread
@@ -229,21 +234,24 @@ class LoopInThread:
             self._tasks[fut] = cancel
 
         def _handle(f: Future[_T]):
+            result = None  # ensure defined
             if f.cancelled():
-                return
-            try:
-                result = f.result()
-            except CancelledError:
-                return
-            except Exception:
-                if on_error:
-                    self._invoke_main(on_error, sys.exc_info())
+                pass
             else:
-                if on_success:
-                    self._invoke_main(on_success, result)
-            finally:
+                try:
+                    result = f.result()
+                except CancelledError:
+                    pass
+                except Exception:
+                    if on_error:
+                        self._invoke_main(on_error, sys.exc_info())
+                else:
+                    if on_success:
+                        self._invoke_main(on_success, result)
+            try:
                 if on_done:
-                    self._invoke_main(on_done, result if not f.cancelled() else None)
+                    self._invoke_main(on_done, None if f.cancelled() else result)
+            finally:
                 cb = self._tasks.pop(f, None)
                 if cb:
                     self._invoke_main(cb)
@@ -257,29 +265,51 @@ class LoopInThread:
         if cb:
             self._invoke_main(cb)
 
-    def stop(self) -> None:
-        # Cancel all pending callbacks
+    def stop(self, timeout: float | None = 5.0) -> None:
+        # Cancel all pending user-provided cancel callbacks
         for fut in list(self._tasks):
             self.cancel_task(fut)
 
-        if self._loop and self._thread and self._loop.is_running():
-            # Schedule shutdown coroutines and wait for completion
-            shutdown_fut = asyncio.run_coroutine_threadsafe(self._shutdown_coroutines(), self._loop)
+        loop, thread = self._loop, self._thread
+        if not loop or not thread:
+            return
+
+        if loop.is_running():
+            # 1) Graceful shutdown inside the loop
+            async def _graceful():
+                current = asyncio.current_task()
+                # Py3.12+: all_tasks() has no loop param
+                tasks = [t for t in asyncio.all_tasks() if t is not current]
+                for t in tasks:
+                    t.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                try:
+                    await loop.shutdown_asyncgens()
+                except Exception:
+                    pass
+                try:
+                    await loop.shutdown_default_executor()
+                except Exception:
+                    pass
+
+            fut = asyncio.run_coroutine_threadsafe(_graceful(), loop)
             try:
-                shutdown_fut.result(timeout=1)
-            except Exception:
-                pass
+                fut.result(timeout=timeout)
+            except Exception as e:
+                logger.warning("Graceful shutdown timed out or failed: %r", e)
 
-            # Stop the loop and wait for thread exit
-            self._loop.call_soon_threadsafe(self._loop.stop)
-            # Daemon thread will exit when loop stops
+            # 2) Stop the loop and wait for the thread to exit
+            loop.call_soon_threadsafe(loop.stop)
+            thread.join(timeout=timeout)
 
-            self._thread.join(timeout=1)
+            if thread.is_alive() or loop.is_running():
+                logger.error("Event loop thread did not stop; skipping close to avoid RuntimeError")
+                return
 
-            # Close the loop to release resources
-            self._loop.close()
-            self._loop = None
-            self._thread = None
+        # 3) Safe to close
+        loop.close()
+        self._loop = None
+        self._thread = None
 
     async def _shutdown_coroutines(self):
         """
