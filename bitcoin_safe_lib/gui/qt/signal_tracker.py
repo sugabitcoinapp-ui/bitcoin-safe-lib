@@ -30,7 +30,7 @@
 import logging
 from typing import Any, Callable, List, Protocol, Tuple, runtime_checkable
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, pyqtBoundSignal
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class SignalTools:
     def disconnect_signal(
         cls,
         signal: SignalProtocol,
-        handler: Callable[..., Any],
+        handler: Callable[..., Any] | pyqtBoundSignal | SignalProtocol,
     ) -> None:
         try:
             signal.disconnect(handler)
@@ -101,7 +101,7 @@ class SignalTools:
     @classmethod
     def disconnect_signals(
         cls,
-        connected_signals: List[Tuple[SignalProtocol, Callable[..., Any]]],
+        connected_signals: List[Tuple[SignalProtocol, Callable[..., Any] | pyqtBoundSignal | SignalProtocol]],
     ) -> None:
         while connected_signals:
             sig, handler = connected_signals.pop()
@@ -110,12 +110,14 @@ class SignalTools:
 
 class SignalTracker:
     def __init__(self) -> None:
-        self._connected_signals: List[Tuple[SignalProtocol, Callable[..., Any]]] = []
+        self._connected_signals: List[
+            Tuple[SignalProtocol, Callable[..., Any] | pyqtBoundSignal | SignalProtocol]
+        ] = []
 
     def connect(
         self,
         signal: SignalProtocol,
-        handler: Callable[..., Any],
+        handler: Callable[..., Any] | pyqtBoundSignal | SignalProtocol,
         **kwargs: Any,
     ) -> None:
         signal.connect(handler, **kwargs)
