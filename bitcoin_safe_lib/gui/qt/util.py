@@ -29,11 +29,11 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Optional, Union
 
 from PyQt6.QtCore import QByteArray
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QAbstractButton, QApplication, QMessageBox, QPushButton
 
 from .i18n import translate
 
@@ -182,3 +182,55 @@ def qbytearray_to_str(a: QByteArray) -> str:
 
 def str_to_qbytearray(s: str) -> QByteArray:
     return QByteArray(s.encode())  # type: ignore[call-overload]
+
+
+def question_dialog(
+    text: str = "",
+    title: str = "Question",
+    true_button: Union[QMessageBox.StandardButton, QPushButton, str] = QMessageBox.StandardButton.Yes,
+    false_button: Union[QMessageBox.StandardButton, QPushButton, str] = QMessageBox.StandardButton.Cancel,
+) -> Optional[bool]:
+    msg = QMessageBox()
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.setIcon(QMessageBox.Icon.Question)
+
+    # map the actual QPushButton instance back to True/False
+    button_map: dict[QAbstractButton | None, bool] = {}
+
+    def _add(
+        btn_def: Union[QMessageBox.StandardButton, QPushButton, str], role: QMessageBox.ButtonRole
+    ) -> QPushButton | None:
+        # 1) If user passed a str, make a QPushButton
+        btn: QPushButton | None = None
+        if isinstance(btn_def, str):
+            btn = QPushButton(btn_def)
+            msg.addButton(btn, role)
+
+        # 2) If user passed a QPushButton, use it directly
+        elif isinstance(btn_def, QPushButton):
+            btn = btn_def
+            msg.addButton(btn, role)
+
+        # 3) Otherwise it must be a StandardButton enum
+        else:
+            # addButton(StandardButton, ButtonRole) returns the created QPushButton
+            btn = msg.addButton(btn_def)
+
+        # remember which choice this represents
+        button_map[btn] = role == QMessageBox.ButtonRole.AcceptRole
+        return btn
+
+    # add both buttons (and keep hold of the actual instances)
+    true_btn = _add(true_button, QMessageBox.ButtonRole.AcceptRole)
+    _add(false_button, QMessageBox.ButtonRole.RejectRole)
+
+    # set the default button to our "true" button instance
+    msg.setDefaultButton(true_btn)
+
+    # run the dialog
+    msg.exec()
+    clicked = msg.clickedButton()
+
+    # translate back to True/False/None
+    return button_map.get(clicked, None)
