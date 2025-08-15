@@ -69,7 +69,7 @@ def linux_env():
 
     # Set LD_LIBRARY_PATH to prefer system libraries.
     paths = ["/usr/lib", "/usr/lib/x86_64-linux-gnu"]
-    if env["LD_LIBRARY_PATH"]:
+    if env.get("LD_LIBRARY_PATH"):
         paths += env["LD_LIBRARY_PATH"]
     env["LD_LIBRARY_PATH"] = ":".join(paths)
     return env
