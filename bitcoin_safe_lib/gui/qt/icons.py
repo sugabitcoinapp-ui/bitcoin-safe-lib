@@ -32,7 +32,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-from PyQt6.QtCore import QByteArray, Qt
+from PyQt6.QtCore import QByteArray, QRectF, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import QApplication
@@ -74,10 +74,30 @@ class SvgTools:
     @classmethod
     def svg_to_pixmap(cls, svg_data: str, size=(256, 256)) -> QPixmap:
         renderer = QSvgRenderer(QByteArray(svg_data.encode("utf-8")))
-        pixmap = QPixmap(*size)
+        tgt_w, tgt_h = size
+
+        # Get the SVG's natural size
+        src_size = renderer.defaultSize()
+        if src_size.width() <= 0 or src_size.height() <= 0:
+            vb = renderer.viewBoxF()
+            src_w, src_h = vb.width(), vb.height()
+        else:
+            src_w, src_h = float(src_size.width()), float(src_size.height())
+
+        if src_w <= 0 or src_h <= 0:
+            src_w = src_h = 1.0  # avoid div-by-zero for odd SVGs
+
+        # Scale to *fit* (inscribe) while preserving aspect ratio
+        scale = min(tgt_w / src_w, tgt_h / src_h)
+        w, h = src_w * scale, src_h * scale
+        x, y = (tgt_w - w) / 2.0, (tgt_h - h) / 2.0
+
+        pixmap = QPixmap(tgt_w, tgt_h)
         pixmap.fill(Qt.GlobalColor.transparent)
+
         painter = QPainter(pixmap)
-        renderer.render(painter)
+        painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+        renderer.render(painter, QRectF(x, y, w, h))  # draw into the centered, scaled rect
         painter.end()
         return pixmap
 
